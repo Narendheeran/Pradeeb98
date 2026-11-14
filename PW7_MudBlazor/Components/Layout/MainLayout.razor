@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<div class="app-shell">
+    <header class="topbar"><a href="/dashboard" class="brand"><span class="brand-mark" aria-hidden="true">W</span><span>WAGO CC100 <strong>Packaging station</strong></span></a><span class="course-label">TMS202 CA2</span></header>
+    <main>@Body</main>
+    <footer>Industrial IoT laboratory <span>WAGO CC100 → MQTT → C# → Blazor</span></footer>
+</div>
+<div id="blazor-error-ui">The dashboard encountered an error. <a href="" class="reload">Reload</a><button class="dismiss" aria-label="Dismiss error">×</button></div>
+@code {
+    private readonly MudTheme _theme = new() { PaletteLight = new PaletteLight { Primary = "#195f4e", Secondary = "#d78f32", Background = "#f5f7f6", Surface = "#ffffff", TextPrimary = "#172e29", TextSecondary = "#61726d" } };
+}

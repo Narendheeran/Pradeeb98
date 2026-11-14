@@ -1,0 +1,69 @@
+@using Microsoft.AspNetCore.Components
+
+<div class="inspection-scene @StateClass" role="img" aria-label="@SceneDescription">
+    <div class="scene-floor" aria-hidden="true"></div>
+    <div class="detector-post" aria-hidden="true"></div>
+    <div class="detector-arm" aria-hidden="true"></div>
+    <div class="conveyor-foot foot-left" aria-hidden="true"></div>
+    <div class="conveyor-foot foot-right" aria-hidden="true"></div>
+    <div class="conveyor-deck" aria-hidden="true">
+        @for (var roller = 0; roller < 14; roller++)
+        {
+            <span class="conveyor-roller"></span>
+        }
+    </div>
+    <div class="conveyor-front" aria-hidden="true"><span class="belt-direction"></span></div>
+    <div class="detection-zone" aria-hidden="true"></div>
+    <div class="detector-beam" aria-hidden="true"></div>
+    @if (Detected == true || _parcelMotion == ParcelMotion.Departing)
+    {
+        <div class="parcel @ParcelClass" aria-hidden="true">
+            <span class="parcel-tape"></span>
+            <span class="parcel-label"></span>
+        </div>
+    }
+    <div class="detector-head" aria-hidden="true"><span class="detector-light"></span></div>
+</div>
+
+@code {
+    [Parameter] public bool? Detected { get; set; }
+
+    private bool? _previousDetected;
+    private ParcelMotion _parcelMotion;
+
+    private string StateClass => Detected switch
+    {
+        true => "is-detected",
+        false => "is-clear",
+        _ => "is-unknown"
+    };
+
+    private string SceneDescription => Detected switch
+    {
+        true => "Conveyor illustration. The proximity sensor detects a package at the inspection point.",
+        false => "Conveyor illustration. The proximity sensor reports the inspection point is clear.",
+        _ => "Conveyor illustration. Waiting for a fresh proximity sensor reading."
+    };
+
+    private string ParcelClass => _parcelMotion switch
+    {
+        ParcelMotion.Arriving => "parcel-arriving",
+        ParcelMotion.Departing => "parcel-departing",
+        _ => ""
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (Detected == _previousDetected) return;
+
+        _parcelMotion = (_previousDetected, Detected) switch
+        {
+            (false, true) => ParcelMotion.Arriving,
+            (true, false) => ParcelMotion.Departing,
+            _ => ParcelMotion.None
+        };
+        _previousDetected = Detected;
+    }
+
+    private enum ParcelMotion { None, Arriving, Departing }
+}

@@ -1,0 +1,240 @@
+.inspection-scene {
+    --scene-green: #2a765b;
+    --scene-muted: #a1b1a9;
+    --inspection-x: 53%;
+    position: relative;
+    isolation: isolate;
+    inline-size: 100%;
+    min-block-size: 148px;
+    max-block-size: 210px;
+    aspect-ratio: 2.05;
+    margin: 18px auto 14px;
+    overflow: hidden;
+    border: 1px solid #dbe7e0;
+    border-radius: 15px;
+    background: radial-gradient(ellipse at 49% 7%, #f9fcfa 6%, #edf5f0 72%, #e6efe9 100%);
+}
+
+.scene-floor {
+    position: absolute;
+    inset: auto 3% 6% 3%;
+    block-size: 24%;
+    background: radial-gradient(ellipse, #365e4930 0%, #527c621b 45%, transparent 72%);
+}
+
+.detector-post {
+    position: absolute;
+    inset: 21% auto 29% 29%;
+    inline-size: 3.5%;
+    border: 1px solid #315044;
+    border-radius: 4px 4px 2px 2px;
+    background: linear-gradient(90deg, #365749 0%, #638074 38%, #29483b 100%);
+    box-shadow: 2px 2px 4px #24433332;
+}
+
+.detector-arm {
+    position: absolute;
+    inset: 18% auto auto 28.5%;
+    inline-size: 27%;
+    block-size: 7.5%;
+    border: 1px solid #315044;
+    border-radius: 4px;
+    background: linear-gradient(#6f8a79, #345345);
+    box-shadow: 0 2px 5px #183d2b25;
+}
+
+.conveyor-foot {
+    position: absolute;
+    inset-block: 76% 9%;
+    inline-size: 3.7%;
+    border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, #3d5d4e, #678273 48%, #355246);
+}
+
+.foot-left { inset-inline-start: 16%; }
+.foot-right { inset-inline-end: 15%; }
+
+.conveyor-deck {
+    position: absolute;
+    inset: 57% 8.5% auto 10%;
+    block-size: 19%;
+    display: grid;
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+    gap: clamp(2px, .7vw, 5px);
+    padding: 3px;
+    border: 2px solid #48665a;
+    border-radius: 5px 5px 1px 1px;
+    background: #536c60;
+    transform: skewX(-20deg);
+    transform-origin: center bottom;
+}
+
+.conveyor-roller {
+    min-inline-size: 0;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #6b8477 0%, #d5e3db 42%, #a2b6a9 72%, #718d7f 100%);
+    box-shadow: inset 0 1px #eef7f174, inset 0 -1px #2c4a3a65;
+}
+
+.conveyor-front {
+    position: absolute;
+    inset: 75% 8.5% auto 10%;
+    block-size: 9%;
+    border: 1px solid #385446;
+    border-radius: 1px 1px 5px 5px;
+    background: linear-gradient(#5b7a68, #304e40);
+    box-shadow: inset 0 1px #9cb4a7aa, 0 2px 3px #1b4d3326;
+}
+
+.belt-direction {
+    position: absolute;
+    inset: 20% 7% auto auto;
+    inline-size: 10px;
+    block-size: 5px;
+    background: #c7e1d1;
+    opacity: .72;
+    clip-path: polygon(0 32%, 60% 32%, 60% 0%, 100% 50%, 60% 100%, 60% 68%, 0 68%);
+}
+
+.detector-head {
+    position: absolute;
+    z-index: 4;
+    inset: 22% auto auto var(--inspection-x);
+    inline-size: 11%;
+    min-inline-size: 28px;
+    block-size: 13%;
+    border: 1px solid #2d483c;
+    border-radius: 6px;
+    background: linear-gradient(#6f8a7b 0%, #3c5c4d 39%, #294538 100%);
+    box-shadow: 0 3px 6px #23483532;
+    transform: translateX(-50%);
+}
+
+.detector-light {
+    position: absolute;
+    inset: 22% 16% auto auto;
+    inline-size: clamp(5px, 1.45vw, 8px);
+    aspect-ratio: 1;
+    border: 1px solid #254638;
+    border-radius: 50%;
+    background: #c1d0c7;
+    transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.detector-head::after {
+    position: absolute;
+    content: "";
+    inset: auto 19% -2px;
+    block-size: 3px;
+    border-radius: 4px;
+    background: #8ca79a;
+}
+
+.detection-zone {
+    position: absolute;
+    z-index: 1;
+    inset: 61.5% auto auto var(--inspection-x);
+    inline-size: 20%;
+    block-size: 12%;
+    border: 1px dashed #2a765b95;
+    outline: 1px solid #f4fff17a;
+    border-radius: 4px;
+    background: #d6e8dd65;
+    transform: translateX(-50%) skewX(-20deg);
+    transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.detector-beam {
+    position: absolute;
+    z-index: 3;
+    inset: 34% auto auto var(--inspection-x);
+    inline-size: 22%;
+    block-size: 37%;
+    background: linear-gradient(#72dc9b2b, #83e6a132);
+    clip-path: polygon(44% 0%, 56% 0%, 100% 100%, 0% 100%);
+    transform: translateX(-50%);
+    opacity: .38;
+    transition: opacity 180ms ease;
+}
+
+.is-detected .detector-light { background: #9ff9ba; box-shadow: 0 0 7px #77ed9ed9; }
+.is-detected .detector-head::after { background: #a7fbbe; }
+.is-detected .detector-beam { opacity: .94; }
+.is-detected .detection-zone { border-color: #216a4d; background: #83d9a782; }
+.is-unknown .detector-beam { opacity: 0; }
+.is-unknown .detection-zone { border-color: var(--scene-muted); background: #d8e0db85; }
+.is-unknown .detector-light { background: #84988d; }
+
+.parcel {
+    position: absolute;
+    z-index: 2;
+    inset: auto auto 29.5% var(--inspection-x);
+    inline-size: 15.5%;
+    min-inline-size: 32px;
+    max-inline-size: 68px;
+    aspect-ratio: 1.45;
+    border: 1px solid #8b5c31;
+    border-radius: 2px 0 0 2px;
+    background: linear-gradient(145deg, #e3b887, #c4915a 76%);
+    box-shadow: 4px 5px 6px #294c3650;
+    transform: translateX(-50%);
+}
+
+.parcel::before {
+    position: absolute;
+    content: "";
+    inset: auto 0 100% -1px;
+    block-size: 24%;
+    border: 1px solid #9c7044;
+    background: linear-gradient(90deg, #e9c296 0%, #e9c296 43%, #f3d7ad 43%, #f3d7ad 61%, #e9c296 61%);
+    transform: skewX(-32deg);
+    transform-origin: left bottom;
+}
+
+.parcel::after {
+    position: absolute;
+    content: "";
+    inset: -1px auto -1px 100%;
+    inline-size: 15%;
+    border: 1px solid #8b5c31;
+    background: linear-gradient(90deg, #b48350, #986434);
+    transform: skewY(-52deg);
+    transform-origin: left top;
+}
+
+.parcel-tape {
+    position: absolute;
+    inset: 0 auto auto 43%;
+    inline-size: 18%;
+    block-size: 50%;
+    background: #efd3a5ae;
+    border-radius: 0 0 1px 1px;
+}
+
+.parcel-label {
+    position: absolute;
+    inset: auto auto 18% 13%;
+    inline-size: 28%;
+    block-size: 21%;
+    border-radius: 1px;
+    background: linear-gradient(90deg, #f5eddf 0% 16%, #e3d1b9 16% 28%, #f5eddf 28% 44%, #e3d1b9 44% 53%, #f5eddf 53%);
+}
+
+.parcel-arriving { animation: parcel-in 560ms cubic-bezier(.18, .7, .31, 1) both; }
+.parcel-departing { animation: parcel-out 530ms cubic-bezier(.36, 0, .8, .66) both; }
+
+@keyframes parcel-in {
+    from { inset-inline-start: 12%; opacity: .14; }
+    to { inset-inline-start: var(--inspection-x); opacity: 1; }
+}
+
+@keyframes parcel-out {
+    from { inset-inline-start: var(--inspection-x); opacity: 1; }
+    72% { opacity: .94; }
+    to { inset-inline-start: 96%; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inspection-scene * { animation: none; transition: none; }
+    .parcel-departing { display: none; }
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+    "profiles": {
+      "CA2 Live": {
+        "commandName": "Project",
+        "dotnetRunMessages": true,
+        "launchBrowser": true,
+        "launchUrl": "dashboard",
+        "applicationUrl": "http://localhost:5131",
+        "environmentVariables": {
+          "ASPNETCORE_ENVIRONMENT": "Development",
+          "Mqtt__DemoMode": "false",
+          "Mqtt__RequireTemperature": "true",
+          "Mqtt__Host": "192.168.101.59",
+          "Mqtt__Port": "1883",
+          "Mqtt__Topic": "beaver-iot/mqtt@default/mqtt-device/PLC_111",
+          "Mqtt__CommandTopic": "tms202/PLC_111/control/enable",
+          "Mqtt__Username": "mqtt@default",
+          "Mqtt__PromptForPassword": "true"
+        }
+      },
+      "http": {
+        "commandName": "Project",
+        "dotnetRunMessages": true,
+        "launchBrowser": true,
+        "launchUrl": "dashboard",
+        "applicationUrl": "http://localhost:5131",
+        "environmentVariables": {
+          "ASPNETCORE_ENVIRONMENT": "Development",
+          "Mqtt__DemoMode": "true"
+        }
+      },
+      "https": {
+        "commandName": "Project",
+        "dotnetRunMessages": true,
+        "launchBrowser": true,
+        "launchUrl": "dashboard",
+        "applicationUrl": "https://localhost:7255;http://localhost:5131",
+        "environmentVariables": {
+          "ASPNETCORE_ENVIRONMENT": "Development",
+          "Mqtt__DemoMode": "true"
+        }
+      }
+    }
+  }

@@ -1,0 +1,389 @@
+@page "/"
+@page "/dashboard"
+@implements IDisposable
+@inject MqttDataStore Store
+@inject MqttBackgroundService Receiver
+@inject Microsoft.Extensions.Options.IOptions<MqttOptions> Settings
+
+<PageTitle>Packaging station monitor · TMS202 CA2</PageTitle>
+<section class="page-heading">
+    <div><h1>Packaging station monitor</h1><p>Detect packages at the inspection point and monitor the station for high temperatures.</p></div>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="TogglePause" StartIcon="@(_paused ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.Pause)">@(_paused ? "Resume display" : "Pause display")</MudButton>
+</section>
+@if (Options.DemoMode)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mode-alert">Demonstration mode. The readings and controls use a local simulation.</MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mode-alert">Live MQTT mode. Check the latest update and sensor status before using a reading.</MudAlert>
+}
+@if (_paused) { <MudAlert Severity="Severity.Info" Class="mb-4">Readings paused. Connection status, alerts and event history continue updating.</MudAlert> }
+<div class="status-line">
+    <span class="connection-pill @StatusClass"><span class="status-dot @StatusClass" aria-hidden="true"></span><strong>@Latest.ConnectionStatus</strong></span>
+    <span class="status-detail">@Freshness</span>
+    <span class="message-total"><span @key="Latest.ReceivedCount" class="packet-flash @(ConnectionFresh ? "packet-arrived" : "")" aria-hidden="true"></span>@Latest.ReceivedCount readings received</span>
+</div>
+
+@if (CurrentReading?.Np9Pressed == true)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mode-alert">
+        <strong>Local stop active · NP9 pressed.</strong> Release NP9, then reset the inspection hold. The raw package sensor continues to report detections.
+    </MudAlert>
+}
+else if (CurrentReading?.Np9Hold == true)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mode-alert">
+        <strong>Inspection on hold.</strong> Releasing NP9 keeps the hold active. Reset the hold before issuing a separate enable request.
+    </MudAlert>
+}
+
+<div class="detail-grid condition-grid">
+    <MudPaper Elevation="0" Class="detail-panel temperature-panel">
+        <div class="panel-title"><h2>Station temperature</h2><span>PROBE INPUT</span></div>
+        @if (TemperatureReading is { } temperature)
+        {
+            <div class="temperature-reading">
+                <span class="numeric-value">@FormatTemperature(temperature)</span><span class="unit">°C</span>
+                @if (LastValidTemperatureShown) { <span class="reading-label">Last valid reading</span> }
+            </div>
+        }
+        else
+        {
+            <p class="temperature-quality">Temperature unavailable</p>
+        }
+        <div class="temperature-threshold"><span>High temperature threshold</span><strong>@FormatTemperature(Options.TemperatureHighC) °C</strong></div>
+        <div class="temperature-threshold"><span>Alert clears below</span><strong>@FormatTemperature(Options.TemperatureHighC - Options.TemperatureHysteresisC) °C</strong></div>
+        <p class="temperature-quality" role="status">@TemperatureStatus</p>
+    </MudPaper>
+    <MudPaper Elevation="0" Class="detail-panel condition-panel">
+        <h2>Active alerts</h2>
+        <div aria-live="polite">
+            @if (Latest.ActiveEvents.Length == 0)
+            {
+                <p class="event-empty">@(Latest.Reading is null ? "Waiting for the first valid reading." : "No active alerts.")</p>
+            }
+            else
+            {
+                <ul class="event-list active-alerts" aria-label="Active alerts">
+                    @foreach (var condition in Latest.ActiveEvents)
+                    {
+                        <li @key="condition.Kind">
+                            <span class="event-badge @SeverityClass(condition.Severity)">@condition.Severity</span>
+                            <span><strong>@condition.Kind</strong><br />@condition.Message</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </MudPaper>
+</div>
+
+<div class="monitor-grid">
+    <MudPaper Elevation="0" Class="voltage-panel">
+        <div class="panel-title"><h2>Lab signal generator</h2><span>TEST INPUT</span></div>
+        <div class="voltage-layout">
+            <div class="voltage-number">
+                <span class="numeric-value">@VoltageText</span>
+                @if (DisplayVoltage.HasValue) { <span class="unit">V</span> }
+                <p>@VoltageCaption</p>
+            </div>
+            <div class="gauge voltage-gauge @(IsStale && !_paused ? "gauge-stale" : "")" role="img" aria-label="@VoltageGaugeLabel">
+                <svg viewBox="0 0 200 128" aria-hidden="true">
+                    <path class="gauge-track" d="M 20 100 A 80 80 0 0 1 180 100" />
+                    <path class="gauge-ticks" d="M 32 100 A 68 68 0 0 1 168 100" pathLength="100" />
+                    @if (DisplayVoltage is { } gaugeVoltage)
+                    {
+                        <path class="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" stroke-dasharray="@GaugeDash(gaugeVoltage)" />
+                        <line class="gauge-needle" x1="100" y1="100" x2="100" y2="45" style="@NeedleStyle(gaugeVoltage)" />
+                        <circle class="gauge-hub" cx="100" cy="100" r="5" />
+                    }
+                    <text x="20" y="124">0</text><text x="180" y="124" text-anchor="end">@Options.VoltageMaximum.ToString("0.#") V</text>
+                </svg>
+            </div>
+        </div>
+        <div class="chart-heading"><span>Recent voltage trend</span><small>Latest 60 readings · scale 0–@Options.VoltageMaximum.ToString("0.#") V</small></div>
+        <div class="trend" role="img" aria-label="Voltage trend for the latest received readings">
+            <svg viewBox="0 0 600 130" preserveAspectRatio="none">
+                <line x1="0" y1="15" x2="600" y2="15"/><line x1="0" y1="65" x2="600" y2="65"/><line x1="0" y1="115" x2="600" y2="115"/>
+                @foreach (var points in VoltageTrendSegments())
+                {
+                    <polyline points="@points" />
+                }
+            </svg>
+        </div>
+        <div class="chart-axis"><span>Earlier readings</span><span>Now</span></div>
+        @if (DisplayVoltage is { } voltage && (voltage < 0 || voltage > Options.VoltageMaximum)) { <p class="range-note">Reading is outside the configured chart scale. The numeric value remains exact.</p> }
+    </MudPaper>
+    <MudPaper Elevation="0" Class="sensor-panel">
+        <div class="panel-title"><h2>Package detection</h2><span>PNP SENSOR</span></div>
+        @{ var detected = PackageDetected; }
+        <InspectionScene Detected="detected" />
+        <h3 class="sensor-state">@(detected is null ? "Waiting for a fresh sensor reading" : detected.Value ? "Package detected" : "No package detected")</h3>
+        <p class="sensor-caption">PNP input · @(detected is null ? "—" : detected.Value ? "1 / TRUE" : "0 / FALSE")</p>
+        <div class="control-state"><span>NP9 push button</span><strong class="input-chip @Np9Class"><span class="input-lamp" aria-hidden="true"></span>@Np9Status</strong></div>
+        <div class="control-state"><span>Inspection hold</span><strong>@HoldStatus</strong></div>
+        <div class="control-state"><span>Presence indicator (PLC reported)</span><strong>@BoolLabel(View.Reading?.LedState)</strong></div>
+        <div class="control-state"><span>Indicator enabled</span><strong>@BoolLabel(View.Reading?.EnableControl)</strong></div>
+        <div class="control-buttons">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => SendControlAsync(true))" Disabled="@ControlsDisabled">Enable indicator</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => SendControlAsync(false))" Disabled="@ControlsDisabled">Disable indicator</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ResetHoldAsync" Disabled="@ResetDisabled">Reset hold</MudButton>
+        </div>
+        <p class="control-help">NP9 disables the presence indicator and holds inspection. Release NP9 before resetting the hold. A reset leaves the indicator disabled.</p>
+        <p class="control-help">The presence indicator follows the package sensor when enabled. The temperature threshold raises an alert.</p>
+        @if (!Options.DemoMode && Latest.ActiveEvents.Any(item => item.Kind == "Temperature input"))
+        {
+            <p class="control-help">Indicator controls require a valid temperature reading. You can still reset the hold once NP9 is released and a fresh reading reports the hold.</p>
+        }
+        @if (HasPendingCommand) { <p class="control-pending" role="status">@(_pendingReset ? "Waiting for inspection hold to clear…" : Options.DemoMode ? "Applying simulated setting…" : "Awaiting PLC telemetry confirmation…")</p> }
+        @if (_controlMessage is { } controlMessage) { <p class="control-pending" role="status">@controlMessage</p> }
+        @if (ValidWebVisuUrl is { } webVisuUrl) { <MudButton Href="@webVisuUrl" Target="_blank" Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true">Open PLC WebVisu</MudButton> }
+    </MudPaper>
+</div>
+<MudPaper Elevation="0" Class="detail-panel event-panel">
+    <h2>Recent events</h2>
+    @if (Latest.Events.Length == 0)
+    {
+        <p class="event-empty">No events recorded.</p>
+    }
+    else
+    {
+        <ol class="event-list event-history" aria-label="Recent events, newest first">
+            @foreach (var item in Latest.Events.Take(12))
+            {
+                <li @key="item">
+                    <time datetime="@(item.At.ToString("O", CultureInfo.InvariantCulture))">@FormatTimestamp(item.At)</time>
+                    <div class="event-description">
+                        <div class="event-labels">
+                            <span class="event-badge @SeverityClass(item.Severity)">@item.Severity</span>
+                            <strong>@item.Kind · @(item.Active ? "Active" : "Recovered")</strong>
+                        </div>
+                        <span>@item.Message</span>
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+</MudPaper>
+<div class="detail-grid">
+    <MudPaper Elevation="0" Class="detail-panel"><h2>Device details</h2><dl><div><dt>Device ID</dt><dd>@(Latest.Reading?.DeviceId ?? "Waiting for first payload")</dd></div><div><dt>Device name</dt><dd>@(Latest.Reading?.DeviceName ?? "—")</dd></div><div><dt>Last received</dt><dd>@(Latest.Reading is { } latestReading ? FormatTimestamp(latestReading.ReceivedAt) : "—")</dd></div><div><dt>Rejected payloads</dt><dd>@Latest.InvalidCount</dd></div></dl></MudPaper>
+    <MudPaper Elevation="0" Class="detail-panel"><h2>Data connection</h2><dl><div><dt>Source</dt><dd>@(Options.DemoMode ? "Local demo generator" : $"{Options.Host}:{Options.Port}")</dd></div><div><dt>Topic filter</dt><dd class="topic">@Options.Topic</dd></div><div><dt>Protocol</dt><dd>MQTT 3.1.1 · QoS 1 subscription</dd></div><div><dt>Updates</dt><dd>As MQTT readings arrive</dd></div><div><dt>Last packet gap</dt><dd>@LastPacketGap</dd></div><div><dt>Stale warning</dt><dd>After @Options.StaleAfterSeconds s without a new reading</dd></div></dl></MudPaper>
+</div>
+@if (Latest.LastError is { } error) { <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-5">@error The last valid reading is kept until a new one arrives.</MudAlert> }
+@code {
+    private MqttOptions Options => Settings.Value;
+    private TelemetrySnapshot Latest = default!;
+    private TelemetrySnapshot View = default!;
+    private bool _paused, _disposed;
+    private bool? _pendingTarget;
+    private bool _pendingReset;
+    private DateTimeOffset _commandSentAt;
+    private string? _controlMessage;
+    private readonly CancellationTokenSource _timerCancellation = new();
+    protected override void OnInitialized()
+    {
+        Store.OnChange += HandleChange;
+        Latest = Store.Snapshot;
+        View = Latest;
+        _ = TickAsync();
+    }
+
+    private void HandleChange()
+    {
+        if (!_disposed) _ = InvokeAsync(() =>
+        {
+            Latest = Store.Snapshot;
+            CheckAcknowledgement(Latest);
+            if (!_paused) View = Latest;
+            StateHasChanged();
+        });
+    }
+
+    private void TogglePause()
+    {
+        _paused = !_paused;
+        if (!_paused) View = Latest;
+    }
+    private async Task TickAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            while (await timer.WaitForNextTickAsync(_timerCancellation.Token))
+            {
+                if (_disposed) return;
+                await InvokeAsync(() =>
+                {
+                    if (HasPendingCommand && DateTimeOffset.UtcNow - _commandSentAt > TimeSpan.FromSeconds(20))
+                    {
+                        _pendingTarget = null;
+                        _controlMessage = _pendingReset
+                            ? "The hold reset was not confirmed within 20 seconds. Check that NP9 is released and the PLC is receiving commands."
+                            : "No telemetry confirmation within 20 seconds. Check the PLC subscriber and command topic.";
+                        _pendingReset = false;
+                    }
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+    private bool IsStale => Latest.Reading is { } reading && DateTimeOffset.UtcNow - reading.ReceivedAt >= TimeSpan.FromSeconds(Options.StaleAfterSeconds);
+    private DeviceReading? DiscreteReading
+    {
+        get
+        {
+            if (View.Reading is not { } reading) return null;
+            if (Options.DemoMode || _paused) return reading;
+            if (Latest.ConnectionStatus != "Listening" || IsStale) return null;
+
+            // A reconnect can happen before the previous session's last reading expires.
+            return Latest.Events.Any(item => item.Kind == "Broker" && !item.Active && item.At >= reading.ReceivedAt)
+                ? null
+                : reading;
+        }
+    }
+    private bool? PackageDetected => DiscreteReading?.SensorPnp;
+    private DeviceReading? CurrentReading => FreshReading(Latest, DateTimeOffset.UtcNow);
+    private DeviceReading? FreshReading(TelemetrySnapshot snapshot, DateTimeOffset now)
+    {
+        if (snapshot.Reading is not { } reading || now - reading.ReceivedAt >= TimeSpan.FromSeconds(Options.StaleAfterSeconds))
+            return null;
+        return (Options.DemoMode ? snapshot.ConnectionStatus == "Demo" : snapshot.IsCurrentLiveReadingFresh) ? reading : null;
+    }
+    private string Np9Class => CurrentReading?.Np9Pressed switch { true => "input-pressed", false => "input-released", _ => "input-unknown" };
+    private string Np9Status => CurrentReading switch
+    {
+        null => "Waiting for a fresh reading",
+        { Np9Pressed: true } => "Pressed",
+        { Np9Pressed: false } => "Released",
+        _ => "Not reported"
+    };
+    private string HoldStatus => CurrentReading switch
+    {
+        null => "Waiting for a fresh reading",
+        { Np9Hold: true } => "On hold",
+        { Np9Hold: false } => "Clear",
+        _ => "Not reported"
+    };
+    private string StatusClass => IsStale ? "stale" : Latest.ConnectionStatus is "Listening" or "Demo" ? "online" : "offline";
+    private bool ConnectionFresh => Latest.Reading is not null && !IsStale && (Latest.ConnectionStatus is "Listening" or "Demo");
+    private string Freshness => Latest.Reading is null ? "Waiting for the first valid payload" : IsStale ? "Stale reading · no recent update" : $"Updated {Math.Max(0, (int)(DateTimeOffset.UtcNow - Latest.Reading.ReceivedAt).TotalSeconds)}s ago";
+    private string LastPacketGap => Latest.History.Length < 2 ? "—" : FormattableString.Invariant($"{Math.Max(0, (Latest.History[^1].ReceivedAt - Latest.History[^2].ReceivedAt).TotalSeconds):0.0} s");
+    private double? ReportedTemperature => View.Reading is { TemperatureOk: not false } reading ? reading.TemperatureC : null;
+    private bool LastValidTemperatureShown => View.LastGoodTemperatureC.HasValue &&
+        (ReportedTemperature is null || !_paused && IsStale);
+    private double? TemperatureReading => LastValidTemperatureShown ? View.LastGoodTemperatureC : ReportedTemperature;
+    private string TemperatureStatus => Latest.Reading switch
+    {
+        null => "Waiting for temperature telemetry.",
+        _ when IsStale => "Temperature telemetry is stale.",
+        { TemperatureOk: false } => "Temperature input fault.",
+        { TemperatureC: null } => "No temperature value received.",
+        { TemperatureOk: null } => "Temperature quality was not reported.",
+        _ when Latest.TemperatureHigh => "High temperature alert is active.",
+        _ => "Temperature below the high threshold."
+    };
+    private static string FormatTemperature(double temperature) => temperature.ToString("0.0#", CultureInfo.InvariantCulture);
+    private static string FormatTimestamp(DateTimeOffset timestamp) => timestamp.ToOffset(TimeSpan.FromHours(8))
+        .ToString("dd MMM yyyy, HH:mm:ss 'MYT'", CultureInfo.InvariantCulture);
+    private static string SeverityClass(string severity) => severity.ToLowerInvariant() switch
+    {
+        "critical" or "error" => "event-critical",
+        "warning" => "event-warning",
+        _ => "event-info"
+    };
+    private double? DisplayVoltage => View.Reading?.DisplayVoltage;
+    private string VoltageText => DisplayVoltage?.ToString("0.00", CultureInfo.InvariantCulture) ?? "—";
+    private string VoltageCaption => View.Reading is { VoltageOk: false } ? "Voltage unavailable" : !_paused && IsStale ? "Last voltage · stale" : "Latest voltage";
+    private string VoltageGaugeLabel => DisplayVoltage.HasValue
+        ? $"Voltage {VoltageText} volts, configured scale 0 to {Options.VoltageMaximum} volts"
+        : View.Reading is null ? "Waiting for a voltage reading" : "Voltage unavailable";
+    private double VoltageRatio(double voltage) => Math.Clamp(voltage / Options.VoltageMaximum, 0, 1);
+    private string GaugeDash(double voltage) => FormattableString.Invariant($"{VoltageRatio(voltage) * 100:0.###} 100");
+    private string NeedleStyle(double voltage) => FormattableString.Invariant($"transform:rotate({VoltageRatio(voltage) * 180 - 90:0.###}deg)");
+
+    private IEnumerable<string> VoltageTrendSegments()
+    {
+        var history = View.History;
+        var points = new List<string>();
+        for (var index = 0; index < history.Length; index++)
+        {
+            if (history[index].DisplayVoltage is { } voltage)
+            {
+                var x = history.Length < 2 ? 0 : index * 600.0 / (history.Length - 1);
+                var y = 115 - VoltageRatio(voltage) * 100;
+                points.Add(FormattableString.Invariant($"{x:0.0},{y:0.0}"));
+            }
+            else if (points.Count > 0)
+            {
+                yield return string.Join(" ", points);
+                points.Clear();
+            }
+        }
+        if (points.Count > 0) yield return string.Join(" ", points);
+    }
+    private string? ValidWebVisuUrl => Uri.TryCreate(Options.WebVisuUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.ToString() : null;
+    private static string BoolLabel(bool? value) => value.HasValue ? value.Value ? "ON" : "OFF" : "Not supplied";
+    private bool HasPendingCommand => _pendingReset || _pendingTarget.HasValue;
+    private bool ControlsDisabled => _paused || HasPendingCommand || !ControlAvailable(Latest);
+    private bool ResetDisabled => _paused || HasPendingCommand || !ResetAvailable(Latest);
+    private bool ControlAvailable(TelemetrySnapshot snapshot) =>
+        FreshReading(snapshot, DateTimeOffset.UtcNow) is { Np9Pressed: not true, Np9Hold: not true } &&
+        (Options.DemoMode || snapshot.CanControl);
+    private bool ResetAvailable(TelemetrySnapshot snapshot) =>
+        FreshReading(snapshot, DateTimeOffset.UtcNow) is { Np9Pressed: false, Np9Hold: true } &&
+        (Options.DemoMode || snapshot.CanResetInspectionHold);
+    private async Task SendControlAsync(bool enabled)
+    {
+        if (_paused || HasPendingCommand || !ControlAvailable(Store.Snapshot)) return;
+        _controlMessage = null;
+        _pendingTarget = enabled;
+        _commandSentAt = DateTimeOffset.UtcNow;
+        try { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)); await Receiver.PublishControlAsync(enabled, timeout.Token); }
+        catch (Exception)
+        { _pendingTarget = null; _controlMessage = "Command could not be sent. Check the MQTT connection and retry."; }
+    }
+
+    private async Task ResetHoldAsync()
+    {
+        if (_paused || HasPendingCommand || !ResetAvailable(Store.Snapshot)) return;
+        _controlMessage = null;
+        _pendingReset = true;
+        _commandSentAt = DateTimeOffset.UtcNow;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await Receiver.ResetInspectionHoldAsync(timeout.Token);
+        }
+        catch (Exception)
+        {
+            _pendingReset = false;
+            _controlMessage = "The hold reset could not be sent. Check that NP9 is released and the connection is available.";
+        }
+    }
+
+    private void CheckAcknowledgement(TelemetrySnapshot latest)
+    {
+        if (!HasPendingCommand || FreshReading(latest, DateTimeOffset.UtcNow) is not { } reading ||
+            reading.ReceivedAt <= _commandSentAt) return;
+
+        if (_pendingReset && reading is { Np9Pressed: false, Np9Hold: false })
+        {
+            _pendingReset = false;
+            _controlMessage = "The inspection hold is clear. Use Enable indicator to send a separate enable request.";
+        }
+        else if (_pendingTarget.HasValue && (reading.Np9Pressed == true || reading.Np9Hold == true))
+        {
+            _pendingTarget = null;
+            _controlMessage = "The inspection hold has priority. Release NP9 and reset the hold before trying again.";
+        }
+        else if (_pendingTarget.HasValue && ControlAvailable(latest) && reading.EnableControl == _pendingTarget)
+        {
+            _pendingTarget = null;
+            _controlMessage = Options.DemoMode ? "Simulation updated." : "PLC telemetry confirms the requested enable state.";
+        }
+    }
+    public void Dispose() { _disposed = true; Store.OnChange -= HandleChange; _timerCancellation.Cancel(); _timerCancellation.Dispose(); }
+}

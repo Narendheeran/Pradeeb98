@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Tms202.Telemetry/Tms202.Telemetry.csproj" /><PackageReference Include="MQTTnet.Server" Version="5.2.0.1603" /></ItemGroup>
+</Project>

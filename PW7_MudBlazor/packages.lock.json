@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.AspNetCore.App.Internal.Assets": {
+        "type": "Direct",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "+sIBo9AMBZH46qHWHQdfzcGMt+RuBaPYrUMOAM9VjA7MQ9QtIez3lq1C3E05+Yroa94KKt3DSWaxmCI4H28a9Q=="
+      },
+      "MudBlazor": {
+        "type": "Direct",
+        "requested": "[9.11.0, )",
+        "resolved": "9.11.0",
+        "contentHash": "hboxF5cQuMYjB0w6+tScmNt0ACuoCu35TGPsCmCq8OeQgvtPtzQ1s9auAOrINj/J6I/ZyBB1rmUzrcMKj14RFA=="
+      },
+      "MQTTnet": {
+        "type": "Transitive",
+        "resolved": "5.2.0.1603",
+        "contentHash": "iNuWVo/568aRo2ExEN2qkC4J5b07ckKqt+9Uok2kIbbK7PMBsXvYiKVENPHmOBWFB5ExhlNQb/qQ8M9/IYRTdQ=="
+      },
+      "tms202.telemetry": {
+        "type": "Project",
+        "dependencies": {
+          "MQTTnet": "[5.2.0.1603, )"
+        }
+      }
+    }
+  }
+}
